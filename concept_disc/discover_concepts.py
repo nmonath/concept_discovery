@@ -21,7 +21,7 @@ import sent2vec
 import spacy
 from tqdm import tqdm, trange
 
-from .eutils import PubmedSearch, PubmedDocFetch
+from concept_disc.eutils import PubmedSearch, PubmedDocFetch
 
 from IPython import embed
 
@@ -297,12 +297,18 @@ def link_clusters(concept_metadata,
     print('Finding closest synonyms to phrases...')
     PHRASE_SYNONYM_KNN_FILENAME = os.path.join(output_dir, 'phrase_synonym_knn.pkl')
     if not os.path.exists(PHRASE_SYNONYM_KNN_FILENAME):
-        name_ids, name_embeds = zip(*concept_metadata.name_id2embed.items())
+        name_ids = np.arange(0,10001)
+        name_embeds = np.zeros((10001,700),dtype=np.float32)
+        #name_ids, name_embeds = zip(*concept_metadata.name_id2embed.items())
         X = np.vstack(name_embeds) # these are the concept synonym embeddings
-        X /= np.linalg.norm(X, axis=1)[:,np.newaxis]
+        Xnorms = np.linalg.norm(X, axis=1)[:,np.newaxis]
+        Xnorms[Xnorms==0] = 1
+        X /= Xnorms
         Q = np.vstack(list(phrase_metadata.id2embed.values())) # these are the key phrase embeddings
-        Q /= np.linalg.norm(Q, axis=1)[:,np.newaxis]
-        k = 64
+        norms = np.linalg.norm(Q, axis=1)[:,np.newaxis]
+        norms[norms==0] = 1
+        Q /= norms
+        k = 4
         d = X.shape[1]
         n_cells = 10000
         n_probe = 50
@@ -315,8 +321,9 @@ def link_clusters(concept_metadata,
         index.add(X)
         D, I = index.search(Q, k)
 
-        v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
-        v_name_id2synonym = np.vectorize(lambda x : concept_metadata.name_id2name[x])
+        #v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
+        v_name_id2cuid = np.vectorize(lambda x : str(x))
+        v_name_id2synonym = np.vectorize(lambda x : str(x))
         knn_cuids = v_name_id2cuid(I)
         knn_synonyms = I
 
@@ -344,7 +351,7 @@ def link_clusters(concept_metadata,
         cluster_candidates = [x for cands in map(lambda phrase_id : phrase_id2candidates[phrase_id], phrase_ids) for x in cands]
         candidates2scores = defaultdict(list)
         for cuid, synonym_id, synonym_score in cluster_candidates:
-            candidates2scores[cuid].append((concept_metadata.name_id2name[synonym_id], synonym_score))
+            candidates2scores[cuid].append((synonym_id, synonym_score))
         cand_w_scores = [(cand, max(synonym_score, key=lambda x : x[1])) for cand, synonym_score in candidates2scores.items()]
         cand_w_scores = sorted(cand_w_scores, key=lambda x : x[1][1], reverse=True)[:cand_limit]
         cluster_id2cand_w_scores[cluster_id] = cand_w_scores
@@ -373,6 +380,38 @@ def write_top_concepts(args, phrase_metadata, clustering_model, output_filename)
             f.write(''.join(['=']*80) + '\n')
     print('Done.')
 
+
+def write_discovered_concepts_(args, phrase_metadata, concept_metadata, linked_cluster_metadata, output_filename):
+    # write to output file
+    print('Writing results to: {}...'.format(output_filename))
+    with open(output_filename, 'w') as f:
+        f.write(''.join(['=']*80) + '\n')
+        _clusters = list()
+
+        # functions of clusters
+        # this sorts the clusters in ascending order of the score of the
+        # maximum scoring entity from UMLS 2017AA divided by the
+        # max of document frequencies of the phrases in the cluster
+        for cluster_id, phrases in _clusters[:100]:
+            _cand_w_scores = linked_cluster_metadata.cluster_id2cand_w_scores[cluster_id]
+            phrase_counts = list(map(lambda x : len(phrase_metadata.phrase2docs[x]), phrases))
+            if max(phrase_counts) == 1:
+                continue
+            f.write('Cluster phrases:\n')
+            f.write('----------------\n')
+            f.write('{}\n\n'.format(' ; '.join(map(lambda x : '{} ({})'.format(x[0], x[1]), sorted(list(zip(phrases, phrase_counts)), key=lambda x : x[1], reverse=True)))))
+            f.write('Closest concepts:\n')
+            f.write('-----------------\n')
+            for cuid, (top_scoring_synonym, score) in _cand_w_scores:
+                f.write('\tPrimary Name: {}\tType: {}\tMatching Synonym:{}\tScore:{}\n'.format(
+                        linked_cluster_metadata.cuid2names[cuid][0],
+                        concept_metadata.cuid2type[cuid],
+                        top_scoring_synonym,
+                        score)
+                )
+            f.write('\n')
+            f.write(''.join(['=']*80) + '\n')
+    print('Done.')
 
 def write_discovered_concepts(args, phrase_metadata, concept_metadata, linked_cluster_metadata, output_filename):
     # write to output file
@@ -405,10 +444,10 @@ def write_discovered_concepts(args, phrase_metadata, concept_metadata, linked_cl
             f.write('-----------------\n')
             for cuid, (top_scoring_synonym, score) in _cand_w_scores:
                 f.write('\tPrimary Name: {}\tType: {}\tMatching Synonym:{}\tScore:{}\n'.format(
-                        linked_cluster_metadata.cuid2names[cuid][0],
-                        concept_metadata.cuid2type[cuid],
-                        top_scoring_synonym,
-                        score)
+                        'null', #linked_cluster_metadata.cuid2names[cuid][0],
+                        'null', #concept_metadata.cuid2type[cuid],
+                        'null', #top_scoring_synonym,
+                        'null') #score)
                 )
             f.write('\n')
             f.write(''.join(['=']*80) + '\n')
