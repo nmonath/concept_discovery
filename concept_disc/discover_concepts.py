@@ -518,6 +518,8 @@ if __name__ == '__main__':
             pubmed_search.search('single cell biology', create_date_range=('2018/01/01', '2020/08/30'), n_results=20000)
         elif args.pubmed_special_query == 'primary_ciliary_dyskinesia':
             pubmed_search.search('Primary Ciliary Dyskinesia', create_date_range=('2018/01/01', '2020/08/30'), n_results=20000)
+        elif args.pubmed_special_query == 'spondylolisthesis':
+            pubmed_search.search('spondylolisthesis', create_date_range=('2018/01/01', '2020/08/30'), n_results=20000)
 
 
         pmids = pubmed_search.get_search_response_dict()['response']['docids']

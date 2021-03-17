@@ -61,6 +61,10 @@ $  pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.2.
 python src/discover_concepts.py --data_source 'pubmed_download' --pubmed_special_query 'single_cell_biology' --task 'concept_discovery' --biosentvec_path './bin/BioSentVec_PubMed_MIMICIII-bigram_d700.bin' --output_dir 'single_cell_biology_discovered_concepts'
 ```
 
+```
+python -m concept_disc.discover_concepts --data_source 'pubmed_download' --pubmed_special_query 'spondylolisthesis' --task 'concept_discovery' --biosentvec_path '/iesl/data/pubmed/cord19/2020-03-13/BioSentVec_PubMed_MIMICIII-bigram_d700.bin' --output_dir 'spondylolisthesis_discovered_concepts'
+```
+
 ### Example Output
 
 ```
