@@ -470,7 +470,7 @@ def get_and_check_args():
     parser = argparse.ArgumentParser(description='Biomedical concept discovery pipeline')
     parser.add_argument('--data_source', type=str, choices=['pubmed_download', 'cord19'], required=True)
     parser.add_argument('--cord_data_path', type=str)
-    parser.add_argument('--pubmed_special_query', type=str, choices=['latest_papers', 'single_cell_biology', 'primary_ciliary_dyskinesia'])
+    parser.add_argument('--pubmed_special_query', type=str, choices=['latest_papers', 'single_cell_biology', 'primary_ciliary_dyskinesia', 'spondylolisthesis'])
     parser.add_argument('--biosentvec_path', type=str, required=True)
     parser.add_argument('--task', type=str, choices=['concept_discovery', 'top_concepts'], required=True)
     parser.add_argument('--umls_lexicon_path', type=str, default='/home/ds-share/data2/users/rangell/entity_discovery/UMLS_preprocessing/AnntdData/')
