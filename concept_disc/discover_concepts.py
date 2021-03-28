@@ -22,6 +22,8 @@ import spacy
 from tqdm import tqdm, trange
 
 from concept_disc.eutils import PubmedSearch, PubmedDocFetch
+from absl import logging
+from pathos.multiprocessing import ProcessingPool
 
 from IPython import embed
 
@@ -119,6 +121,29 @@ def extract_mentions(id_to_text):
                         other_based_phrases.append(ent_string)
         id_to_noun_based_phrases[id] = noun_based_phrases
         id_to_other_based_phrases[id] = other_based_phrases
+    return id_to_noun_based_phrases, id_to_other_based_phrases
+
+def extract_mentions_par(id_to_text):
+    # batch the id_to_text
+    logging.info('batching up docs...')
+    num_cores = ProcessingPool().ncpus
+    logging.info('number of cpus - %s', num_cores)
+    batches = [dict() for _ in range(num_cores)]
+    batch_idx = 0
+    for id,text in tqdm(id_to_text.items(),
+                               desc='batching docs',total=len(id_to_text)):
+
+        batches[batch_idx][id] = text
+        batch_idx += 1
+        if batch_idx == num_cores:
+            batch_idx = 0
+
+    id_to_noun_based_phrases = defaultdict(list)
+    id_to_other_based_phrases = defaultdict(list)
+    results = [n for n in ProcessingPool().imap(extract_mentions, batches)]
+    for id2n, id2o in results:
+        id_to_noun_based_phrases.update(id2n)
+        id_to_other_based_phrases.update(id2o)
     return id_to_noun_based_phrases, id_to_other_based_phrases
 
 
@@ -287,6 +312,42 @@ def embed_synonyms(sent2vec_model, umls_lexicon_dir):
     concept_metadata = SimpleNamespace(**concept_metadata)
     return concept_metadata
 
+def embed_synonyms_mrconso(sent2vec_model, mrconsofile):
+
+    from collections import defaultdict
+    cuid2names = defaultdict(list)
+    cuid2type = defaultdict(set)
+    name_id2cuid = {}
+    name_id2name = {}
+    name_id2embed = {}
+
+    next_name_id = 0
+    with open(mrconsofile, 'r') as fin:
+        for line in tqdm(mrconsofile):
+            splt = line.split('|')
+            cui = splt[0]
+            name = splt[14]
+            cuid2names[cui].append(name)
+            cuid2type[cui].insert(cui)
+            _name = ' '.join(word_tokenize(name))
+            _emb = sent2vec_model.embed_sentence(_name).reshape(-1, )
+            # only include embedable phrases (0.0 is oov)
+            if np.linalg.norm(_emb) != 0.0:
+                name_id2cuid[next_name_id] = cui
+                name_id2name[next_name_id] = name
+                name_id2embed[next_name_id] = _emb
+                next_name_id += 1
+
+    concept_metadata = {
+        'cuid2names' : cuid2names,
+        'cuid2type' : cuid2type,
+        'name_id2cuid' : name_id2cuid,
+        'name_id2name' : name_id2name,
+        'name_id2embed' : name_id2embed,
+    }
+    concept_metadata = SimpleNamespace(**concept_metadata)
+    return concept_metadata
+
 
 def link_clusters(concept_metadata,
                   phrase_metadata,
@@ -309,6 +370,12 @@ def link_clusters(concept_metadata,
         norms[norms==0] = 1
         Q /= norms
         k = 4
+        #name_ids, name_embeds = zip(*concept_metadata.name_id2embed.items())
+        #X = np.vstack(name_embeds) # these are the concept synonym embeddings
+        #X /= np.linalg.norm(X, axis=1)[:,np.newaxis]
+        #Q = np.vstack(list(phrase_metadata.id2embed.values())) # these are the key phrase embeddings
+        #Q /= np.linalg.norm(Q, axis=1)[:,np.newaxis]
+        #k = 64
         d = X.shape[1]
         n_cells = 10000
         n_probe = 50
@@ -324,6 +391,8 @@ def link_clusters(concept_metadata,
         #v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
         v_name_id2cuid = np.vectorize(lambda x : str(x))
         v_name_id2synonym = np.vectorize(lambda x : str(x))
+        #v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
+        #v_name_id2synonym = np.vectorize(lambda x : concept_metadata.name_id2name[x])
         knn_cuids = v_name_id2cuid(I)
         knn_synonyms = I
 
@@ -352,6 +421,7 @@ def link_clusters(concept_metadata,
         candidates2scores = defaultdict(list)
         for cuid, synonym_id, synonym_score in cluster_candidates:
             candidates2scores[cuid].append((synonym_id, synonym_score))
+            #candidates2scores[cuid].append((concept_metadata.name_id2name[synonym_id], synonym_score))
         cand_w_scores = [(cand, max(synonym_score, key=lambda x : x[1])) for cand, synonym_score in candidates2scores.items()]
         cand_w_scores = sorted(cand_w_scores, key=lambda x : x[1][1], reverse=True)[:cand_limit]
         cluster_id2cand_w_scores[cluster_id] = cand_w_scores
@@ -442,12 +512,19 @@ def write_discovered_concepts(args, phrase_metadata, concept_metadata, linked_cl
             f.write('{}\n\n'.format(' ; '.join(map(lambda x : '{} ({})'.format(x[0], x[1]), sorted(list(zip(phrases, phrase_counts)), key=lambda x : x[1], reverse=True)))))
             f.write('Closest concepts:\n')
             f.write('-----------------\n')
+            #for cuid, (top_scoring_synonym, score) in _cand_w_scores:
+            #    f.write('\tPrimary Name: {}\tType: {}\tMatching Synonym:{}\tScore:{}\n'.format(
+            #            'null', #linked_cluster_metadata.cuid2names[cuid][0],
+            #            'null', #concept_metadata.cuid2type[cuid],
+            #            'null', #top_scoring_synonym,
+            #            'null') #score)
+            #    )
             for cuid, (top_scoring_synonym, score) in _cand_w_scores:
                 f.write('\tPrimary Name: {}\tType: {}\tMatching Synonym:{}\tScore:{}\n'.format(
-                        'null', #linked_cluster_metadata.cuid2names[cuid][0],
-                        'null', #concept_metadata.cuid2type[cuid],
-                        'null', #top_scoring_synonym,
-                        'null') #score)
+                        linked_cluster_metadata.cuid2names[cuid][0],
+                        concept_metadata.cuid2type[cuid],
+                        top_scoring_synonym,
+                        score)
                 )
             f.write('\n')
             f.write(''.join(['=']*80) + '\n')
@@ -538,11 +615,17 @@ if __name__ == '__main__':
     output_filename = os.path.join(args.output_dir, output_filename)
 
     # extract mentions
+    # print('Extracting mentions...')
+    # id_to_noun_based_phrases, id_to_other_based_phrases = compute_and_cache(
+    #         ID_TO_PHRASES_FILENAME,
+    #         extract_mentions,
+    #         [id_to_text]
+    # )
     print('Extracting mentions...')
     id_to_noun_based_phrases, id_to_other_based_phrases = compute_and_cache(
-            ID_TO_PHRASES_FILENAME,
-            extract_mentions,
-            [id_to_text]
+        ID_TO_PHRASES_FILENAME,
+        extract_mentions_par,
+        [id_to_text]
     )
 
     # create sent2vec model
@@ -569,11 +652,19 @@ if __name__ == '__main__':
     if args.task == 'concept_discovery':
         # embed all concept synonyms and organize metdata
         print('Embedding all synonyms...')
-        concept_metadata = compute_and_cache(
+        if 'MRCONSO.RRF' in args.umls_lexicon_path:
+            concept_metadata = compute_and_cache(
                 CONCEPT_METADATA_FILENAME,
-                embed_synonyms,
+                embed_synonyms_mrconso,
                 [sent2vec_model, args.umls_lexicon_path]
-        )
+            )
+
+        else:
+            concept_metadata = compute_and_cache(
+                    CONCEPT_METADATA_FILENAME,
+                    embed_synonyms,
+                    [sent2vec_model, args.umls_lexicon_path]
+            )
 
         # link clusters to concepts
         print('Linking clusters...')
