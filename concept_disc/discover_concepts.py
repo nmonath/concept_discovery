@@ -27,6 +27,7 @@ from pathos.multiprocessing import ProcessingPool
 
 from IPython import embed
 
+logging.set_verbosity(logging.INFO)
 
 def read_cord_data(data_dir):
     cord_uid_to_text = defaultdict(list)
