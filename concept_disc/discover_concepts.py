@@ -358,29 +358,16 @@ def link_clusters(concept_metadata,
                   phrase_metadata,
                   clustering_model,
                   output_dir):
-
     # build knn index
     print('Finding closest synonyms to phrases...')
     PHRASE_SYNONYM_KNN_FILENAME = os.path.join(output_dir, 'phrase_synonym_knn.pkl')
     if not os.path.exists(PHRASE_SYNONYM_KNN_FILENAME):
-        name_ids = np.arange(0,10001)
-        name_embeds = np.zeros((10001,700),dtype=np.float32)
-        #name_ids, name_embeds = zip(*concept_metadata.name_id2embed.items())
+        name_ids, name_embeds = zip(*concept_metadata.name_id2embed.items())
         X = np.vstack(name_embeds) # these are the concept synonym embeddings
-        Xnorms = np.linalg.norm(X, axis=1)[:,np.newaxis]
-        Xnorms[Xnorms==0] = 1
-        X /= Xnorms
+        X /= np.linalg.norm(X, axis=1)[:,np.newaxis]
         Q = np.vstack(list(phrase_metadata.id2embed.values())) # these are the key phrase embeddings
-        norms = np.linalg.norm(Q, axis=1)[:,np.newaxis]
-        norms[norms==0] = 1
-        Q /= norms
-        k = 4
-        #name_ids, name_embeds = zip(*concept_metadata.name_id2embed.items())
-        #X = np.vstack(name_embeds) # these are the concept synonym embeddings
-        #X /= np.linalg.norm(X, axis=1)[:,np.newaxis]
-        #Q = np.vstack(list(phrase_metadata.id2embed.values())) # these are the key phrase embeddings
-        #Q /= np.linalg.norm(Q, axis=1)[:,np.newaxis]
-        #k = 64
+        Q /= np.linalg.norm(Q, axis=1)[:,np.newaxis]
+        k = 64
         d = X.shape[1]
         n_cells = 10000
         n_probe = 50
@@ -393,11 +380,8 @@ def link_clusters(concept_metadata,
         index.add(X)
         D, I = index.search(Q, k)
 
-        #v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
-        v_name_id2cuid = np.vectorize(lambda x : str(x))
-        v_name_id2synonym = np.vectorize(lambda x : str(x))
-        #v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
-        #v_name_id2synonym = np.vectorize(lambda x : concept_metadata.name_id2name[x])
+        v_name_id2cuid = np.vectorize(lambda x : concept_metadata.name_id2cuid[x])
+        v_name_id2synonym = np.vectorize(lambda x : concept_metadata.name_id2name[x])
         knn_cuids = v_name_id2cuid(I)
         knn_synonyms = I
 
@@ -425,8 +409,7 @@ def link_clusters(concept_metadata,
         cluster_candidates = [x for cands in map(lambda phrase_id : phrase_id2candidates[phrase_id], phrase_ids) for x in cands]
         candidates2scores = defaultdict(list)
         for cuid, synonym_id, synonym_score in cluster_candidates:
-            candidates2scores[cuid].append((synonym_id, synonym_score))
-            #candidates2scores[cuid].append((concept_metadata.name_id2name[synonym_id], synonym_score))
+            candidates2scores[cuid].append((concept_metadata.name_id2name[synonym_id], synonym_score))
         cand_w_scores = [(cand, max(synonym_score, key=lambda x : x[1])) for cand, synonym_score in candidates2scores.items()]
         cand_w_scores = sorted(cand_w_scores, key=lambda x : x[1][1], reverse=True)[:cand_limit]
         cluster_id2cand_w_scores[cluster_id] = cand_w_scores
