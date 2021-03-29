@@ -317,6 +317,7 @@ def embed_synonyms(sent2vec_model, umls_lexicon_dir):
     return concept_metadata
 
 def embed_synonyms_mrconso(sent2vec_model, mrconsofile):
+    logging.info('embed_synonyms_mrconso....')
 
     from collections import defaultdict
     cuid2names = defaultdict(list)
@@ -327,7 +328,7 @@ def embed_synonyms_mrconso(sent2vec_model, mrconsofile):
 
     next_name_id = 0
     with open(mrconsofile, 'r') as fin:
-        for line in tqdm(mrconsofile):
+        for line in tqdm(fin):
             splt = line.split('|')
             cui = splt[0]
             name = splt[14]
