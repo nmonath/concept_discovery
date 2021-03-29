@@ -249,15 +249,18 @@ def coo_2_hg(coo_mat):
     return ugraph, dists.astype(np.float32)
 
 
-def cluster_phrases(phrase_metadata, threshold):
+def cluster_phrases(phrase_metadata, threshold, outdir):
     ids, embeds = zip(*phrase_metadata.id2embed.items())
     print('Building sparse graph...')
     coo_pw_sim_mat = build_coo_graph(ids, embeds, k=100)
+    from scipy.sparse import save_npz
+    save_npz('%s/knn_graph.npz' % outdir, coo_pw_sim_mat)
     print('Running avg HAC...')
     Z, _, _, _, _ = sparse_avg_hac(coo_pw_sim_mat)
-
+    np.save('%s/Z.npy' % outdir, Z)
     print('Generating flat clustering...')
     P = fcluster(Z, threshold)
+    np.save('%s/P.npy' % outdir, P)
     cluster_id2phrase = defaultdict(set)
     for i, _id in enumerate(phrase_metadata.id2embed.keys()):
         assert i == _id
@@ -647,7 +650,7 @@ if __name__ == '__main__':
     clustering_model = compute_and_cache(
             CLUSTERING_MODEL_FILENAME,
             cluster_phrases,
-            [phrase_metadata, args.clustering_threshold]
+            [phrase_metadata, args.clustering_threshold, args.output_dir]
     )
 
     if args.task == 'concept_discovery':
