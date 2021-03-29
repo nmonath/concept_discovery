@@ -333,7 +333,7 @@ def embed_synonyms_mrconso(sent2vec_model, mrconsofile):
             cui = splt[0]
             name = splt[14]
             cuid2names[cui].append(name)
-            cuid2type[cui].insert(cui)
+            cuid2type[cui].add(cui)
             _name = ' '.join(word_tokenize(name))
             _emb = sent2vec_model.embed_sentence(_name).reshape(-1, )
             # only include embedable phrases (0.0 is oov)

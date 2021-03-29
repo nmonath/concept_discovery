@@ -67,6 +67,10 @@ python src/discover_concepts.py --data_source 'pubmed_download' --pubmed_special
 python -m concept_disc.discover_concepts --data_source 'pubmed_download' --pubmed_special_query 'spondylolisthesis' --task 'concept_discovery' --biosentvec_path '/iesl/data/pubmed/cord19/2020-03-13/BioSentVec_PubMed_MIMICIII-bigram_d700.bin' --output_dir 'spondylolisthesis_discovered_concepts'
 ```
 
+```
+python -m concept_disc.discover_concepts --data_source 'cord19' --cord_data_path 'data/2021-03-08'  --task 'concept_discovery' --biosentvec_path '/iesl/data/pubmed/cord19/2020-03-13/BioSentVec_PubMed_MIMICIII-bigram_d700.bin' --output_dir 'cord19_discovered_concepts' --umls_lexicon_path 'data/umls-2020AB/MRCONSO.RRF'
+```
+
 ### Example Output
 
 ```
