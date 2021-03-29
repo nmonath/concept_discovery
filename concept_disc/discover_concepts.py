@@ -371,6 +371,8 @@ def link_clusters(concept_metadata,
         d = X.shape[1]
         n_cells = 10000
         n_probe = 50
+        logging.info('X.shape %s', str(X.shape))
+        logging.info('Q.shape %s', str(Q.shape))
         quantizer = faiss.IndexFlat(d, faiss.METRIC_INNER_PRODUCT)
         index = faiss.IndexIVFFlat(
                 quantizer, d, n_cells, faiss.METRIC_INNER_PRODUCT
