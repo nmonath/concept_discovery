@@ -490,10 +490,12 @@ def write_discovered_concepts(args, phrase_metadata, concept_metadata, linked_cl
         # this sorts the clusters in ascending order of the score of the
         # maximum scoring entity from UMLS 2017AA divided by the
         # max of document frequencies of the phrases in the cluster
+        logging.info('[before filter] number of clusters %s', len(_clusters))
         _clusters = list(filter(lambda x : f_cluster2top_score(x[0]) < args.max_linking_score, _clusters)) # BEST: 0.4
+        logging.info('[after link filter] number of clusters %s', len(_clusters))
         _clusters = list(filter(lambda x : f_cluster2max_df(x[0]) < args.max_doc_freq, _clusters)) # BEST: 300
         _clusters.sort(key=lambda x : f_cluster2top_score(x[0]) / f_cluster2max_df(x[0]))
-        logging.info('number of clusters %s', len(_clusters))
+        logging.info('[after freq filter] number of clusters %s', len(_clusters))
         for cluster_id, phrases in _clusters:
             _cand_w_scores = linked_cluster_metadata.cluster_id2cand_w_scores[cluster_id]
             phrase_counts = list(map(lambda x : len(phrase_metadata.phrase2docs[x]), phrases))
